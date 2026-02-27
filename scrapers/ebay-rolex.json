@@ -1,0 +1,62 @@
+{
+  "name": "eBay Rolex Listings",
+  "description": "Scrape Rolex watch listings from eBay",
+  "startUrls": [
+    "https://www.ebay.com/sch/i.html?_nkw=rolex&_sacat=0&_from=R40&_trksid=p2334524.m570.l1313",
+    "https://www.ebay.com/sch/i.html?_nkw=rolex+submariner&_sacat=0",
+    "https://www.ebay.com/sch/i.html?_nkw=rolex+datejust&_sacat=0",
+    "https://www.ebay.com/sch/i.html?_nkw=rolex+daytona&_sacat=0",
+    "https://www.ebay.com/sch/i.html?_nkw=rolex+gmt&_sacat=0"
+  ],
+  "selectors": {
+    "listing": {
+      "selector": "[data-testid='listing-card'] .s-item__info, .s-item__info",
+      "type": "container",
+      "multiple": true
+    },
+    "title": {
+      "selector": ".s-item__title, [data-testid='listing-card-title']",
+      "type": "text"
+    },
+    "price": {
+      "selector": ".s-item__price, .price, [data-testid='price']",
+      "type": "text"
+    },
+    "condition": {
+      "selector": ".s-item__subtitle, .condition-text, [data-testid='condition']",
+      "type": "text"
+    },
+    "seller": {
+      "selector": ".s-item__seller-info-text, .seller, [data-testid='seller-name']",
+      "type": "text"
+    },
+    "link": {
+      "selector": "a.s-item__link, .s-item__link",
+      "type": "attribute",
+      "attribute": "href"
+    },
+    "image": {
+      "selector": ".s-item__image-img, .image img",
+      "type": "attribute",
+      "attribute": "src"
+    }
+  },
+  "pagination": {
+    "enabled": true,
+    "selector": ".pagination__next, a[aria-label='Next page'], .s-pagination-next",
+    "maxPages": 10
+  },
+  "maxRequestsPerHour": 360,
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
+    "Connection": "keep-alive"
+  },
+  "output": {
+    "format": "json",
+    "fields": ["title", "price", "condition", "seller", "link", "image", "scrapedAt"]
+  }
+}
