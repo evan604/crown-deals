@@ -1,0 +1,15 @@
+{
+  "title": "Crown Deals Scraper Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "source": {
+      "title": "Scraper Source",
+      "type": "string",
+      "description": "Which sites to scrape",
+      "enum": ["ebay", "chrono24", "all"],
+      "default": "all"
+    }
+  },
+  "required": ["source"]
+}

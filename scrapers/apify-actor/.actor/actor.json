@@ -1,12 +1,10 @@
 {
   "actorSpecification": 1,
   "name": "crown-deals-rolex-scraper",
-  "title": "Crown Deals - Rolex Watch Scraper",
-  "description": "Scrapes Rolex watch listings from eBay and Chrono24 for deal analysis",
-  "version": "1.0.0",
+  "title": "Crown Deals Rolex Scraper",
+  "description": "Scrapes Rolex listings from eBay and Chrono24, saves to Supabase",
+  "version": "2.0.0",
+  "input": "./input_schema.json",
   "buildTag": "latest",
-  "environmentVariables": {
-    "SUPABASE_URL": "@superbaseUrl",
-    "SUPABASE_SERVICE_KEY": "@supabaseServiceKey"
-  }
+  "usesProxy": true
 }
