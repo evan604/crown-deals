@@ -1,11 +1,12 @@
 {
   "name": "crown-deals-scraper",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Crown Deals scraper with Playwright",
   "main": "main.js",
   "dependencies": {
     "apify": "^3.2.0",
     "crawlee": "^3.9.0",
-    "@supabase/supabase-js": "^2.40.0"
+    "@supabase/supabase-js": "^2.40.0",
+    "playwright": "^1.40.0"
   }
 }
