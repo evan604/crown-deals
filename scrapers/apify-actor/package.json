@@ -1,18 +1,11 @@
 {
   "name": "crown-deals-scraper",
-  "version": "2.1.0",
-  "description": "Crown Deals Rolex scraper with Puppeteer",
+  "version": "2.2.0",
+  "description": "Crown Deals scraper with Playwright",
   "main": "main.js",
-  "scripts": {
-    "start": "node main.js"
-  },
   "dependencies": {
     "apify": "^3.2.0",
     "crawlee": "^3.9.0",
-    "@supabase/supabase-js": "^2.40.0",
-    "puppeteer": "^21.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "@supabase/supabase-js": "^2.40.0"
   }
 }
