@@ -1,4 +1,4 @@
-// Crown Deals Rolex Scraper - Apify Actor v2.4 (Playwright)
+// Crown Deals Rolex Scraper - Apify Actor v2.5 (Playwright)
 const { Actor } = require('apify');
 const { PlaywrightCrawler } = require('crawlee');
 const { createClient } = require('@supabase/supabase-js');
@@ -9,7 +9,7 @@ async function scrapeChrono24(supabase) {
   const crawler = new PlaywrightCrawler({
     proxyConfiguration: await Actor.createProxyConfiguration(),
     maxRequestsPerCrawl: 5,
-    headless: false, // Run headed to avoid bot detection
+    headless: false,
     
     async requestHandler({ request, page, log }) {
       log.info(`Loading: ${request.url}`);
@@ -18,144 +18,93 @@ async function scrapeChrono24(supabase) {
       await page.waitForLoadState('networkidle', { timeout: 30000 });
       log.info('Page network idle');
       
-      // Handle cookie banner if present
-      const cookieSelectors = [
-        '[data-testid="cookie-banner-btn-accept"]',
-        'button:has-text("Accept")',
-        'button:has-text("Agree")',
-        '#onetrust-accept-btn-handler',
-        '.ot-pc-refuse-all-handler',
-        'button.cookie-accept-all'
-      ];
+      // Wait a bit for any dynamic content
+      await page.waitForTimeout(3000);
       
-      for (const selector of cookieSelectors) {
-        try {
-          const btn = await page.$(selector);
-          if (btn) {
-            await btn.click().catch(() => {});
-            log.info(`Clicked cookie: ${selector}`);
-            await page.waitForTimeout(1000);
-            break;
-          }
-        } catch (e) {}
-      }
-      
-      // Try multiple possible article selectors
-      const articleSelectors = [
-        '.article-item-container',
-        '.article-item',
-        '[data-article-id]',
-        'article[data-testid]',
-        '.product-item',
-        '.listing-item',
-        '.article'
-      ];
-      
-      let selectorThatWorked = null;
-      let articles = [];
-      
-      for (let i = 0; i < 5; i++) {
-        for (const selector of articleSelectors) {
-          articles = await page.$$(selector);
-          if (articles.length > 0) {
-            selectorThatWorked = selector;
-            log.info(`Found ${articles.length} articles with selector: ${selector}`);
-            break;
-          }
-        }
-        if (articles.length > 0) break;
-        
-        // Scroll to load more if needed
-        await page.evaluate(() => window.scrollBy(0, 800));
-        await page.waitForTimeout(2000);
-      }
+      // Try to find articles
+      const articleSelector = '.article-item-container';
+      const articles = await page.$$(articleSelector);
+      log.info(`Found ${articles.length} articles`);
       
       if (articles.length === 0) {
-        log.warning('No articles found after scrolling. Taking screenshot for debug.');
-        // Save debug screenshot
+        log.warning('No articles found, saving debug screenshot');
         await Actor.setValue('debug-screenshot', await page.screenshot({ type: 'png' }), { contentType: 'image/png' });
-        // Save page HTML for debugging
-        const html = await page.content();
-        await Actor.setValue('debug-html', html, { contentType: 'text/html' });
-        log.warning('Saved debug screenshot and HTML to key-value store');
+        await Actor.setValue('debug-html', await page.content(), { contentType: 'text/html' });
         return;
       }
       
-      // Extract data
-      const listings = await page.evaluate((selector) => {
-        const items = [];
-        document.querySelectorAll(selector).forEach((el, idx) => {
-          try {
-            // Try multiple title selectors
-            const titleSelectors = ['.article-title', '.product-title', 'h3', 'h2', '.h3', '[data-testid="title"]'];
-            let title = '';
-            for (const ts of titleSelectors) {
-              const elTitle = el.querySelector(ts);
-              if (elTitle) {
-                title = elTitle.textContent.trim();
-                break;
-              }
-            }
+      // Save first article HTML for debugging
+      const firstArticleHTML = await articles[0].evaluate(el => el.outerHTML);
+      await Actor.setValue('debug-article-html', firstArticleHTML.substring(0, 5000), { contentType: 'text/plain' });
+      log.info('Saved first article HTML to debug-article-html');
+      
+      // Extract data from each article
+      for (const article of articles) {
+        try {
+          // Get all text content first
+          const elementData = await article.evaluate((el) => {
+            const data = {
+              id: el.getAttribute('data-article-id') || el.getAttribute('data-id') || '',
+              allText: el.innerText.substring(0, 500), // First 500 chars of text
+              href: el.querySelector('a')?.href || '',
+              links: Array.from(el.querySelectorAll('a')).map(a => ({href: a.href, text: a.innerText})).slice(0, 5)
+            };
             
-            // Try multiple price selectors
-            const priceSelectors = ['[data-currency]', '.price', '.amount', '[data-price]', '.product-price'];
-            let priceText = '';
-            for (const ps of priceSelectors) {
-              const elPrice = el.querySelector(ps);
-              if (elPrice) {
-                priceText = elPrice.textContent.trim();
-                break;
-              }
-            }
+            // Try to find title
+            const titleEl = el.querySelector('.article-title, .product-title, h3, h2, .h3, [data-testid="title"], .title');
+            data.title = titleEl?.innerText?.trim() || '';
             
-            // Extract price number
-            const priceMatch = priceText.match(/[\d,\.]+/);
-            const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, '')) : null;
+            // Try to find price
+            const priceEl = el.querySelector('[data-currency], .price, .amount, [data-price], .product-price, .price-value');
+            data.priceText = priceEl?.innerText?.trim() || '';
             
-            // Determine currency
-            const currency = priceText.includes('€') ? 'EUR' : 
-                           priceText.includes('$') ? 'USD' : 
-                           priceText.includes('£') ? 'GBP' : 'USD';
+            // Try to find image
+            const imgEl = el.querySelector('img');
+            data.imageUrl = imgEl?.src || '';
             
-            // Try multiple link selectors
-            const linkSelectors = ['a[href*="/listing/"]', 'a[href*="/watches/"]', 'a'];
-            let url = '';
-            for (const ls of linkSelectors) {
-              const elLink = el.querySelector(ls);
-              if (elLink?.href) {
-                url = elLink.href;
-                break;
-              }
-            }
-            
-            // Get ID - try data attributes or fallback to index
-            const id = el.getAttribute('data-article-id') || 
-                      el.getAttribute('data-id') || 
-                      el.getAttribute('id') || 
-                      `item-${idx}`;
-            
-            if (title && price) {
-              items.push({ 
-                source: 'chrono24', 
-                source_id: String(id), 
-                title, 
-                price, 
-                currency, 
-                url: url || window.location.href
-              });
-            }
-          } catch (e) {
-            console.log(`Error parsing item ${idx}:`, e.message);
+            return data;
+          });
+          
+          log.debug(`Article data: ${JSON.stringify(elementData)}`);
+          
+          // Parse price
+          const priceMatch = elementData.priceText.match(/[\d,\.]+/);
+          const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, '')) : null;
+          
+          const currency = elementData.priceText.includes('€') ? 'EUR' : 
+                          elementData.priceText.includes('$') ? 'USD' : 
+                          elementData.priceText.includes('£') ? 'GBP' : 'USD';
+          
+          // Determine source ID
+          const sourceId = elementData.id || 
+                          elementData.links[0]?.href?.match(/\d+/)?.[0] || 
+                          `item-${results.length}`;
+          
+          // Build listing object with whatever we found
+          const listing = {
+            source: 'chrono24',
+            source_id: String(sourceId),
+            title: elementData.title || 'Unknown Watch',
+            price: price || 0,
+            currency,
+            url: elementData.href || elementData.links[0]?.href || '',
+            image_url: elementData.imageUrl,
+            raw_text: elementData.allText.substring(0, 200) // Debug info
+          };
+          
+          // Only add if we have a title
+          if (listing.title && listing.title !== 'Unknown Watch') {
+            results.push(listing);
+            log.info(`Extracted: ${listing.title} - ${listing.price} ${listing.currency}`);
+          } else {
+            log.warning(`Skipping article - no title found. Sample text: ${elementData.allText.substring(0, 100)}`);
           }
-        });
-        return items;
-      }, selectorThatWorked);
+        } catch (e) {
+          log.error(`Error extracting article: ${e.message}`);
+        }
+      }
       
-      results.push(...listings);
-      log.info(`Found ${listings.length} items`);
-      
-      // Save extracted data for debugging
-      await Actor.pushData(listings);
+      log.info(`Total extracted: ${results.length} items`);
     }
   });
   
@@ -164,7 +113,7 @@ async function scrapeChrono24(supabase) {
 }
 
 Actor.main(async () => {
-  console.log('🏁 Starting Crown Deals Scraper v2.4');
+  console.log('🏁 Starting Crown Deals Scraper v2.5');
   
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
@@ -180,6 +129,12 @@ Actor.main(async () => {
   const listings = await scrapeChrono24(supabase);
   console.log(`✅ Scraped: ${listings.length} listings`);
   
+  // Push to Apify dataset
+  if (listings.length > 0) {
+    await Actor.pushData(listings);
+  }
+  
+  // Save to Supabase
   let inserted = 0;
   if (supabase && listings.length > 0) {
     for (const l of listings) {
@@ -195,9 +150,10 @@ Actor.main(async () => {
   }
   
   await Actor.pushData({ 
+    summary: true,
     total: listings.length, 
     inserted,
-    scraper_version: '2.4'
+    scraper_version: '2.5'
   });
   
   console.log('🏁 Done');
