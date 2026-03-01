@@ -1,0 +1,13 @@
+{
+  "name": "crown-deals-scraper",
+  "version": "1.0.0",
+  "description": "Apify actor for Crown Deals watch scraping",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "apify": "^3.2.0",
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}
