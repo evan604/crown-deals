@@ -1,25 +1,21 @@
-// Crown Deals Rolex Scraper - Apify Actor v2.2 (Playwright)
+// Crown Deals Rolex Scraper - Apify Actor v2.3 (Playwright)
 const { Actor } = require('apify');
 const { PlaywrightCrawler } = require('crawlee');
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE
-);
-
-async function scrapeChrono24() {
+async function scrapeChrono24(supabase) {
   const results = [];
-  
   const crawler = new PlaywrightCrawler({
     proxyConfiguration: await Actor.createProxyConfiguration(),
     maxRequestsPerCrawl: 5,
-    
     async requestHandler({ request, page, log }) {
       log.info(`Loading: ${request.url}`);
       
       // Wait for articles to load
-      await page.waitForSelector('[data-article-id], .article-item-container', { timeout: 15000 });
+      await page.waitForSelector('[data-article-id], .article-item-container', { 
+        timeout: 15000,
+        state: 'visible'
+      });
       
       // Accept cookies if present
       const cookieBtn = await page.$('[data-testid="cookie-banner-btn-accept"]');
@@ -33,11 +29,18 @@ async function scrapeChrono24() {
             const title = el.querySelector('.h3, h3, .article-title')?.textContent?.trim();
             const priceText = el.querySelector('[data-currency], .price, .amount')?.textContent?.trim() || '';
             const price = priceText.match(/[\d,]+/)?.[0]?.replace(/,/g, '');
-            const currency = priceText.includes('€') ? 'EUR' : 'USD';
+            const currency = priceText.includes('€') ? 'EUR' : priceText.includes('$') ? 'USD' : 'USD';
             const url = el.querySelector('a[href*="/listing/"]')?.href;
             
             if (title && price) {
-              items.push({ source: 'chrono24', source_id: id, title, price: parseInt(price), currency, url });
+              items.push({ 
+                source: 'chrono24', 
+                source_id: id, 
+                title, 
+                price: parseInt(price), 
+                currency, 
+                url 
+              });
             }
           } catch (e) {}
         });
@@ -54,21 +57,44 @@ async function scrapeChrono24() {
 }
 
 Actor.main(async () => {
-  console.log('🏁 Starting...');
-  const listings = await scrapeChrono24();
-  console.log(`✅ Scraped: ${listings.length}`);
+  console.log('🏁 Starting Crown Deals Scraper v2.3');
   
-  // Save to Supabase
-  let inserted = 0;
-  for (const l of listings) {
-    const { error } = await supabase.from('listings').upsert({
-      ...l,
-      condition: 'used',
-      scraped_at: new Date().toISOString()
-    }, { onConflict: 'source_id' });
-    if (!error) inserted++;
+  // Check env vars first
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('⚠️ SUPABASE_URL or SUPABASE_SERVICE_ROLE not set. Skipping database save.');
   }
   
-  console.log(`💾 Saved: ${inserted}`);
-  await Actor.pushData({ total: listings.length, inserted });
+  // Initialize Supabase HERE (inside main), not at module level
+  const supabase = (supabaseUrl && supabaseKey) 
+    ? createClient(supabaseUrl, supabaseKey) 
+    : null;
+  
+  const listings = await scrapeChrono24(supabase);
+  console.log(`✅ Scraped: ${listings.length} listings`);
+  
+  // Save to Supabase only if configured
+  let inserted = 0;
+  if (supabase && listings.length > 0) {
+    for (const l of listings) {
+      const { error } = await supabase.from('listings').upsert({
+        ...l,
+        condition: 'used',
+        scraped_at: new Date().toISOString()
+      }, { onConflict: 'source_id' });
+      if (!error) inserted++;
+      else console.error(`Supabase error: ${error.message}`);
+    }
+    console.log(`💾 Saved: ${inserted} to database`);
+  }
+  
+  await Actor.pushData({ 
+    total: listings.length, 
+    inserted,
+    scraper_version: '2.3'
+  });
+  
+  console.log('🏁 Done');
 });
