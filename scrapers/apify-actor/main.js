@@ -1,4 +1,4 @@
-// Crown Deals Rolex Scraper - Apify Actor v2.5 (Playwright)
+// Crown Deals Rolex Scraper - Apify Actor v2.6 (Playwright)
 const { Actor } = require('apify');
 const { PlaywrightCrawler } = require('crawlee');
 const { createClient } = require('@supabase/supabase-js');
@@ -14,97 +14,96 @@ async function scrapeChrono24(supabase) {
     async requestHandler({ request, page, log }) {
       log.info(`Loading: ${request.url}`);
       
-      // Wait for initial load
       await page.waitForLoadState('networkidle', { timeout: 30000 });
-      log.info('Page network idle');
-      
-      // Wait a bit for any dynamic content
       await page.waitForTimeout(3000);
       
-      // Try to find articles
-      const articleSelector = '.article-item-container';
-      const articles = await page.$$(articleSelector);
-      log.info(`Found ${articles.length} articles`);
-      
-      if (articles.length === 0) {
-        log.warning('No articles found, saving debug screenshot');
-        await Actor.setValue('debug-screenshot', await page.screenshot({ type: 'png' }), { contentType: 'image/png' });
-        await Actor.setValue('debug-html', await page.content(), { contentType: 'text/html' });
-        return;
-      }
-      
-      // Save first article HTML for debugging
-      const firstArticleHTML = await articles[0].evaluate(el => el.outerHTML);
-      await Actor.setValue('debug-article-html', firstArticleHTML.substring(0, 5000), { contentType: 'text/plain' });
-      log.info('Saved first article HTML to debug-article-html');
-      
-      // Extract data from each article
-      for (const article of articles) {
-        try {
-          // Get all text content first
-          const elementData = await article.evaluate((el) => {
-            const data = {
-              id: el.getAttribute('data-article-id') || el.getAttribute('data-id') || '',
-              allText: el.innerText.substring(0, 500), // First 500 chars of text
-              href: el.querySelector('a')?.href || '',
-              links: Array.from(el.querySelectorAll('a')).map(a => ({href: a.href, text: a.innerText})).slice(0, 5)
-            };
+      // Extract all listings in one page.evaluate
+      const listings = await page.evaluate(() => {
+        const items = [];
+        
+        // Find all article containers
+        const articles = document.querySelectorAll('.article-item-container');
+        
+        articles.forEach((article, idx) => {
+          try {
+            // Get all text content and split by lines
+            const text = article.innerText || '';
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
             
-            // Try to find title
-            const titleEl = el.querySelector('.article-title, .product-title, h3, h2, .h3, [data-testid="title"], .title');
-            data.title = titleEl?.innerText?.trim() || '';
+            // First non-empty line is usually the title
+            let title = lines[0] || '';
             
-            // Try to find price
-            const priceEl = el.querySelector('[data-currency], .price, .amount, [data-price], .product-price, .price-value');
-            data.priceText = priceEl?.innerText?.trim() || '';
+            // Skip if it's just navigation text or not a watch
+            const skipWords = ['Go to slide', 'Popular', 'Promoted', 'NE', 'Bl', 'Wa', 'Li', 'Fa', 'Like N', 'NEW'];
+            if (skipWords.some(w => title.toLowerCase().startsWith(w.toLowerCase())) || title.length < 5) {
+              // Try next line
+              for (let i = 1; i < lines.length; i++) {
+                if (!skipWords.some(w => lines[i].toLowerCase().startsWith(w.toLowerCase())) && lines[i].length > 5) {
+                  title = lines[i];
+                  break;
+                }
+              }
+            }
             
-            // Try to find image
-            const imgEl = el.querySelector('img');
-            data.imageUrl = imgEl?.src || '';
+            // If title is still bad, skip this article
+            if (!title || title.length < 5 || skipWords.some(w => title.toLowerCase().startsWith(w.toLowerCase()))) {
+              return;
+            }
             
-            return data;
-          });
-          
-          log.debug(`Article data: ${JSON.stringify(elementData)}`);
-          
-          // Parse price
-          const priceMatch = elementData.priceText.match(/[\d,\.]+/);
-          const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, '')) : null;
-          
-          const currency = elementData.priceText.includes('€') ? 'EUR' : 
-                          elementData.priceText.includes('$') ? 'USD' : 
-                          elementData.priceText.includes('£') ? 'GBP' : 'USD';
-          
-          // Determine source ID
-          const sourceId = elementData.id || 
-                          elementData.links[0]?.href?.match(/\d+/)?.[0] || 
-                          `item-${results.length}`;
-          
-          // Build listing object with whatever we found
-          const listing = {
-            source: 'chrono24',
-            source_id: String(sourceId),
-            title: elementData.title || 'Unknown Watch',
-            price: price || 0,
-            currency,
-            url: elementData.href || elementData.links[0]?.href || '',
-            image_url: elementData.imageUrl,
-            raw_text: elementData.allText.substring(0, 200) // Debug info
-          };
-          
-          // Only add if we have a title
-          if (listing.title && listing.title !== 'Unknown Watch') {
-            results.push(listing);
-            log.info(`Extracted: ${listing.title} - ${listing.price} ${listing.currency}`);
-          } else {
-            log.warning(`Skipping article - no title found. Sample text: ${elementData.allText.substring(0, 100)}`);
+            // Look for price in any line
+            let price = null;
+            let currency = 'USD';
+            
+            for (const line of lines) {
+              // Match prices like $20,999 or €15,500 or £12,000
+              const priceMatch = line.match(/[$€£]([\d,]+)/);
+              if (priceMatch) {
+                price = parseInt(priceMatch[1].replace(/,/g, ''));
+                if (line.includes('€')) currency = 'EUR';
+                else if (line.includes('£')) currency = 'GBP';
+                else if (line.includes('$')) currency = 'USD';
+                break;
+              }
+            }
+            
+            // Get link
+            const linkEl = article.querySelector('a[href*="/listing/"]') || 
+                          article.querySelector('a');
+            const url = linkEl?.href || '';
+            
+            // Get ID from data attribute or URL
+            const dataId = article.getAttribute('data-article-id');
+            const urlId = url.match(/\/(\d+)\?/)?.[1];
+            const sourceId = dataId || urlId || `item-${idx}`;
+            
+            items.push({
+              source: 'chrono24',
+              source_id: String(sourceId),
+              title,
+              price: price || 0,
+              currency,
+              url,
+              raw_lines: lines.slice(0, 5) // Debug: first 5 lines
+            });
+          } catch (e) {
+            console.log(`Error: ${e.message}`);
           }
-        } catch (e) {
-          log.error(`Error extracting article: ${e.message}`);
-        }
+        });
+        
+        return items;
+      });
+      
+      log.info(`Extracted ${listings.length} listings`);
+      
+      // Show sample
+      if (listings.length > 0) {
+        log.info(`Sample: ${listings[0].title} - $${listings[0].price}`);
       }
       
-      log.info(`Total extracted: ${results.length} items`);
+      results.push(...listings);
+      
+      // Push to dataset with debug info
+      await Actor.pushData(listings);
     }
   });
   
@@ -113,14 +112,10 @@ async function scrapeChrono24(supabase) {
 }
 
 Actor.main(async () => {
-  console.log('🏁 Starting Crown Deals Scraper v2.5');
+  console.log('🏁 Starting Crown Deals Scraper v2.6');
   
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    console.warn('⚠️ SUPABASE_URL or SUPABASE_SERVICE_ROLE not set. Skipping database save.');
-  }
   
   const supabase = (supabaseUrl && supabaseKey) 
     ? createClient(supabaseUrl, supabaseKey) 
@@ -129,22 +124,17 @@ Actor.main(async () => {
   const listings = await scrapeChrono24(supabase);
   console.log(`✅ Scraped: ${listings.length} listings`);
   
-  // Push to Apify dataset
-  if (listings.length > 0) {
-    await Actor.pushData(listings);
-  }
-  
   // Save to Supabase
   let inserted = 0;
   if (supabase && listings.length > 0) {
     for (const l of listings) {
+      delete l.raw_lines; // Remove debug field before saving
       const { error } = await supabase.from('listings').upsert({
         ...l,
         condition: 'used',
         scraped_at: new Date().toISOString()
       }, { onConflict: 'source_id' });
       if (!error) inserted++;
-      else console.error(`Supabase error: ${error.message}`);
     }
     console.log(`💾 Saved: ${inserted} to database`);
   }
@@ -153,7 +143,7 @@ Actor.main(async () => {
     summary: true,
     total: listings.length, 
     inserted,
-    scraper_version: '2.5'
+    scraper_version: '2.6'
   });
   
   console.log('🏁 Done');
