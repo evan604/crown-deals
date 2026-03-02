@@ -1,7 +1,7 @@
 # CrownDeals - Master Specification
-**Project:** CrownDeals (CollectorIQ Vertical #1)  
-**Status:** Refined & Ready for Build  
-**Last Updated:** 2026-02-26 by Tazer  
+**Project:** CrownDeals (CollectorIQ Vertical #1)
+**Status:** Phase 1 Complete — Working Prototype
+**Last Updated:** 2026-03-01 by Tazer
 **GitHub:** https://github.com/evan604/crown-deals
 
 ---
@@ -96,12 +96,32 @@ CrownDeals is the **Rolex/luxury watch vertical** under the **CollectorIQ** umbr
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Free→Paid Conversion | 8-12% | — |
-| Monthly Churn | <5% | — |
-| Time to First Good Deal | <48 hours | — |
-| Avg Deal Score Accuracy | 80%+ | — |
-| Year 1 Paid Subscribers | 1,000 | — |
-| Year 1 ARR | $600K | — |
+| Free→Paid Conversion | 8-12% | - |
+| Monthly Churn | <5% | - |
+| Time to First Good Deal | <48 hours | - |
+| Avg Deal Score Accuracy | 80%+ | - |
+| Year 1 Paid Subscribers | 1,000 | - |
+| Year 1 ARR | $600K | - |
+
+---
+
+## ✅ March 1, 2026 Update — BREAKTHROUGH
+
+### **What We Built Today:**
+- ✅ **Working Apify Actor v2.7** — Extracts live Rolex listings from Chrono24
+- ✅ **61 listings extracted** in first test run
+- ✅ **PlaywrightCrawler** — JavaScript-enabled scraping with anti-bot protection
+- ✅ **Dockerfile + build config** — production-ready deployment
+- ✅ **Data extraction validated** — Titles, prices, URLs all captured
+
+### **Example Data Extracted:**
+| Title | Price | URL |
+|-------|-------|-----|
+| Rolex Yacht-Master 42 | $29,500 | chrono24.com/... |
+| Rolex Daytona | $378,000 | chrono24.com/... |
+| Rolex Datejust 36 | $8,999 | chrono24.com/... |
+
+### **Current Status:** Data pipeline functional, ready for database integration
 
 ---
 
@@ -126,9 +146,9 @@ CrownDeals is the **Rolex/luxury watch vertical** under the **CollectorIQ** umbr
 
 ## 🗂️ Files
 
-- `/Users/evanborenstein/clawd/projects/crown_deals/business_plan_v2.md` — Full business plan
-- `https://github.com/evan604/crown-deals` — GitHub repo
-- `/Users/evanborenstein/clawd/CROWN_DEALS_MASTER.md` — This file (quick reference)
+- `/Users/evanborenstein/clawd/projects/crown_deals/business_plan_v2.md` - Full business plan
+- `https://github.com/evan604/crown-deals` - GitHub repo
+- `/Users/evanborenstein/clawd/CROWN_DEALS_MASTER.md` - This file (quick reference)
 
 ---
 
