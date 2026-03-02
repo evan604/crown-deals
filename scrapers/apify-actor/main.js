@@ -45,8 +45,11 @@ async function scrapeChrono24(supabase) {
               }
             }
             
-            // If title is still bad, skip this article
-            if (!title || title.length < 5 || skipWords.some(w => title.toLowerCase().startsWith(w.toLowerCase()))) {
+            // Skip if it's just navigation/promo text
+            const promoKeywords = ['worry-free', 'buyer protection', 'chrono24 buyer', 'purchases'];
+            if (!title || title.length < 5 || 
+                skipWords.some(w => title.toLowerCase().startsWith(w.toLowerCase())) ||
+                promoKeywords.some(k => title.toLowerCase().includes(k))) {
               return;
             }
             
@@ -70,6 +73,11 @@ async function scrapeChrono24(supabase) {
             const linkEl = article.querySelector('a[href*="/listing/"]') || 
                           article.querySelector('a');
             const url = linkEl?.href || '';
+            
+            // Skip if no price found
+            if (!price || price === 0) {
+              return;
+            }
             
             // Get ID from data attribute or URL
             const dataId = article.getAttribute('data-article-id');
