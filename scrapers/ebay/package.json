@@ -1,0 +1,15 @@
+{
+  "name": "crown-deals-ebay-scraper",
+  "version": "1.0.0",
+  "description": "Crown Deals eBay Rolex Scraper - Apify Actor",
+  "main": "main.js",
+  "dependencies": {
+    "apify": "^3.2.0",
+    "crawlee": "^3.9.0",
+    "@supabase/supabase-js": "^2.40.0"
+  },
+  "scripts": {
+    "start": "node main.js",
+    "test": "apify run -p"
+  }
+}

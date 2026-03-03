@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "crown-deals-ebay-scraper",
+  "title": "CrownDeals eBay Rolex Scraper",
+  "description": "Scrapes eBay for Rolex watch listings",
+  "version": "1.0",
+  "storages": {
+    "dataset": "crown-deals-ebay-listings"
+  },
+  "dockerfile": "./Dockerfile"
+}
